@@ -1,5 +1,5 @@
-# 🔮 HAWIYAT-ENIGMA VIBECODING TEST — CHALLENGE v2.0
-## Next.js Full-Stack Edition
+# 🔮 HAWIYAT-ENIGMA VIBECODING TEST — CHALLENGE v3.0
+## Full-Stack + DevOps Edition
 
 > **Feed this entire document to the LLM under test. Nothing else. Observe.**
 
@@ -7,13 +7,20 @@
 
 ## CONTEXT & MISSION
 
-You are a senior full-stack engineer and UI/UX engineer specializing in modern React ecosystems. Your task is to build **"Hawiyat Hub"** — a full-stack personal productivity web application — from scratch, using **Next.js 15 (App Router), TypeScript, shadcn/ui, Tailwind CSS v4, and SQLite via better-sqlite3**.
+You are a senior full-stack engineer, UI/UX engineer, and DevOps engineer. Your task is to build **"Hawiyat Hub"** — a full-stack multi-tenant productivity platform — from scratch, deploy it to production on AWS, and configure the entire infrastructure stack.
 
-This is a timed design + engineering challenge. Quality, completeness, and attention to detail matter. Think before you code. Design before you implement.
+**Three phases:**
+1. **Phase 1** — Build the application (Next.js + Kanban + Auth + RBAC + Notifications)
+2. **Phase 2** — Deploy to AWS (EC2, security, Cloudflare, DNS)
+3. **Phase 3** — Scale to cluster (k3s, Traefik, monitoring, CI/CD notifications)
+
+This is a timed full-stack + infrastructure engineering challenge. Quality, completeness, and attention to detail matter. Think before you code. Design before you deploy.
 
 ---
 
-## TECH STACK — MANDATORY
+## PHASE 1 — APPLICATION
+
+### TECH STACK — MANDATORY
 
 | Layer | Technology | Version |
 |---|---|---|
@@ -28,35 +35,63 @@ This is a timed design + engineering challenge. Quality, completeness, and atten
 | Form Validation | `zod` + `react-hook-form` | latest |
 | State | React built-ins (`useState`, `useOptimistic`) | — |
 | Theme | `next-themes` | latest |
+| Auth | NextAuth.js / Auth.js | latest |
+| Notifications | `resend` (email) + `twilio` or `whatsapp-web.js` (WhatsApp) | latest |
 
-**No other dependencies are permitted** unless explicitly noted below. Do not use Prisma, Drizzle, SWR, TanStack Query, Redux, Jotai, Zustand, or any external state library.
-
----
-
-## PRODUCT SPECIFICATION
-
-### App Name: **Hawiyat Hub**
-### Tagline: *"Your tasks. Your pace. Your space."*
+**No other dependencies are permitted** unless explicitly noted below.
 
 ---
 
-## PROJECT STRUCTURE — REQUIRED
+### PRODUCT SPECIFICATION
 
-The project must follow this structure exactly:
+#### App Name: **Hawiyat Hub**
+#### Tagline: *"Your workspace. Your team. Your tasks."*
+
+---
+
+### PROJECT STRUCTURE — REQUIRED
 
 ```
 hawiyat-hub/
 ├── app/
-│   ├── layout.tsx              # Root layout with font, theme provider
-│   ├── page.tsx                # Home → redirects to /board
+│   ├── layout.tsx                   # Root layout with font, theme provider
+│   ├── page.tsx                     # Landing → redirects to /dashboard
+│   ├── auth/
+│   │   ├── login/page.tsx           # Login page
+│   │   ├── register/page.tsx        # Registration with workspace creation
+│   │   └── callback/route.ts        # OAuth callback
+│   ├── dashboard/
+│   │   └── page.tsx                 # Dashboard with workspace overview
 │   ├── board/
-│   │   └── page.tsx            # Main Kanban board page
-│   └── api/
-│       └── tasks/
-│           ├── route.ts         # GET (list), POST (create)
-│           └── [id]/
-│               └── route.ts     # PATCH (update), DELETE (delete)
+│   │   └── page.tsx                 # Main Kanban board page
+│   ├── settings/
+│   │   ├── page.tsx                 # User profile settings
+│   │   ├── workspace/page.tsx       # Workspace settings
+│   │   ├── members/page.tsx         # Member management (RBAC)
+│   │   └── notifications/page.tsx   # Notification preferences
+│   ├── api/
+│   │   ├── auth/
+│   │   │   └── [...nextauth]/route.ts
+│   │   ├── tasks/
+│   │   │   ├── route.ts             # GET (list), POST (create)
+│   │   │   └── [id]/
+│   │   │       └── route.ts         # PATCH (update), DELETE (delete)
+│   │   ├── workspaces/
+│   │   │   ├── route.ts             # CRUD workspaces
+│   │   │   └── [id]/
+│   │   │       ├── members/route.ts # Member management
+│   │   │       └── invite/route.ts  # Invite users
+│   │   └── notifications/
+│   │       ├── route.ts             # GET notification settings
+│   │       └── send/route.ts        # POST trigger notification
+│   ├── invite/
+│   │   └── [token]/page.tsx         # Accept workspace invite
+│   └── error.tsx                    # Global error boundary
 ├── components/
+│   ├── auth/
+│   │   ├── LoginForm.tsx
+│   │   ├── RegisterForm.tsx
+│   │   └── WorkspaceSwitcher.tsx
 │   ├── board/
 │   │   ├── KanbanBoard.tsx
 │   │   ├── KanbanColumn.tsx
@@ -64,18 +99,37 @@ hawiyat-hub/
 │   │   └── TaskForm.tsx
 │   ├── layout/
 │   │   ├── Header.tsx
+│   │   ├── Sidebar.tsx
 │   │   └── StatsPanel.tsx
-│   └── ui/                     # shadcn/ui components (auto-generated)
+│   ├── notifications/
+│   │   ├── NotificationBell.tsx
+│   │   ├── EmailSettings.tsx
+│   │   └── WhatsAppSettings.tsx
+│   ├── rbac/
+│   │   ├── RoleBadge.tsx
+│   │   ├── MemberList.tsx
+│   │   └── InviteDialog.tsx
+│   └── ui/                          # shadcn/ui components (auto-generated)
 ├── lib/
-│   ├── db.ts                   # SQLite singleton + schema init
-│   ├── actions.ts              # Next.js Server Actions
-│   └── types.ts                # Shared TypeScript types
+│   ├── db.ts                        # SQLite singleton + schema init
+│   ├── actions.ts                   # Next.js Server Actions
+│   ├── types.ts                     # Shared TypeScript types
+│   ├── auth.ts                      # Auth.js configuration
+│   ├── rbac.ts                      # Role/permission definitions & guards
+│   ├── notifications/
+│   │   ├── email.ts                 # Resend email integration
+│   │   ├── whatsapp.ts              # WhatsApp/Twilio integration
+│   │   └── index.ts                 # Notification dispatcher
+│   └── validations.ts               # Zod schemas for all inputs
 ├── hooks/
-│   └── useTasks.ts             # Client-side task state hook
+│   ├── useTasks.ts
+│   ├── useWorkspace.ts
+│   ├── useNotifications.ts
+│   └── useRBAC.ts
+├── middleware.ts                     # Auth + RBAC middleware
 ├── public/
-│   └── ...
-├── .env.local                  # DB_PATH=./hawiyat.db
-├── components.json             # shadcn/ui config
+├── .env.local
+├── components.json
 ├── next.config.ts
 ├── tailwind.config.ts
 └── package.json
@@ -83,486 +137,1350 @@ hawiyat-hub/
 
 ---
 
-## CORE FEATURES — YOU MUST BUILD ALL OF THESE
+### CORE FEATURES — YOU MUST BUILD ALL OF THESE
 
-### 1. 📋 Kanban Task Board
+#### 1. 🔐 Authentication & Multi-Workspace
 
-A three-column Kanban board with the following columns:
-- **Backlog** — Ideas and unstarted tasks
-- **In Progress** — Actively being worked on
-- **Done** — Completed tasks
+**Auth (Auth.js / NextAuth.js):**
+- Email/password authentication with credentials provider
+- Magic link sign-in (Resend email transport)
+- OAuth: Google and GitHub providers
+- Session management with JWT strategy
+- Session token includes: `userId`, `workspaceId`, `role`
 
-**Task Card must contain:**
+**Multi-Workspace:**
+- Each user can create or join multiple workspaces
+- Workspace selector in sidebar (shadcn `Select` or `DropdownMenu`)
+- All tasks, members, and settings are scoped per workspace
+- Workspace slug used in URL: `/board?workspace=my-team`
+- Invite users via email magic link + workspace token
+- Workspace roles: `owner`, `admin`, `member`, `viewer`
+
+**Pages:**
+- `/auth/login` — Login with email/password or OAuth
+- `/auth/register` — Registration creates first workspace automatically
+- `/auth/callback` — OAuth callback handler
+- `/invite/[token]` — Accept workspace invitation, auto-join
+
+---
+
+#### 2. 👥 RBAC — Role-Based Access Control
+
+**Roles & Permissions:**
+
+| Permission | owner | admin | member | viewer |
+|---|---|---|---|---|
+| View tasks | ✅ | ✅ | ✅ | ✅ |
+| Create tasks | ✅ | ✅ | ✅ | ❌ |
+| Edit tasks | ✅ | ✅ | ✅ | ❌ |
+| Delete tasks | ✅ | ✅ | ❌ | ❌ |
+| Move tasks | ✅ | ✅ | ✅ | ❌ |
+| Manage members | ✅ | ✅ | ❌ | ❌ |
+| Invite users | ✅ | ✅ | ❌ | ❌ |
+| Change roles | ✅ | ❌ | ❌ | ❌ |
+| Delete workspace | ✅ | ❌ | ❌ | ❌ |
+| Edit workspace settings | ✅ | ✅ | ❌ | ❌ |
+| Configure notifications | ✅ | ✅ | ❌ | ❌ |
+| Export data | ✅ | ✅ | ✅ | ❌ |
+
+**Implementation:**
+- `lib/rbac.ts` — Permission map and guard functions
+- `middleware.ts` — Route protection with role checks
+- Server Action guards: each action checks `session.workspaceId` + `session.role`
+- UI guards: conditional rendering based on user role
+- `useRBAC()` hook for client-side permission checks
+- Member management page with role dropdown (shadcn `Select`)
+- Invite dialog with role selection
+
+---
+
+#### 3. 📋 Kanban Task Board (Enhanced)
+
+A three-column Kanban board scoped to the active workspace:
+- **Backlog**, **In Progress**, **Done**
+
+**Task Card:**
 - Title (required, max 60 chars)
 - Description (optional, max 200 chars)
 - Priority badge: `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`
-- Due date (optional, shows `"Overdue"` in destructive red if past today)
-- A unique auto-generated task ID (format: `HW-001`, `HW-002`, ...)
-- Created timestamp (shown as relative time, e.g., `"2 hours ago"`)
-- A colored left-border that reflects priority:
-  - `LOW` → `border-l-4 border-emerald-500`
-  - `MEDIUM` → `border-l-4 border-amber-400`
-  - `HIGH` → `border-l-4 border-orange-500`
-  - `CRITICAL` → `border-l-4 border-destructive`
+- Assignee avatar (if multi-user workspace)
+- Due date with overdue indicator
+- Unique task ID per workspace: `WS-001`, `WS-002` (where WS = workspace prefix)
+- Created timestamp (relative time)
+- Colored left-border by priority
+- Edit/Delete/Move dropdown (respects RBAC)
 
 **Board interactions:**
-- Click a **"+ Add Task"** button per column to create a new task in that column
-- Tasks can be **moved between columns** via a "Move to →" dropdown on the card (shadcn `DropdownMenu`)
-- Tasks can be **deleted** with a confirmation prompt (shadcn `AlertDialog`)
-- Tasks can be **edited** (click pencil icon to open edit `Dialog`)
-- Double-click a card title to quick-edit inline (contenteditable with blur-save)
+- "+ Add Task" per column
+- "Move to →" dropdown (shadcn `DropdownMenu`)
+- Delete with confirmation (shadcn `AlertDialog`)
+- Edit via pencil icon (shadcn `Dialog`)
+- Double-click title inline edit (contenteditable)
+- Assigned user selector (multi-user workspaces)
 
 ---
 
-### 2. ➕ Task Creation / Edit Modal
+#### 4. ➕ Task Creation / Edit Modal
 
-Use a shadcn `Dialog` with:
-- Title input (`Input`, required, validates on submit via `zod`)
-- Description textarea (`Textarea`, optional)
-- Priority selector (shadcn `Select` with color-coded options)
+shadcn `Dialog` with:
+- Title input (zod validated)
+- Description textarea
+- Priority selector (color-coded shadcn `Select`)
+- Assignee selector (workspace members, if multi-user)
 - Due date picker (shadcn `Popover` + `Calendar`)
-- Cancel and Save buttons
-- Press `Escape` to close (built into Dialog)
-- Clicking the backdrop closes the dialog
-- Edit mode pre-fills all fields from the existing task
+- Cancel / Save buttons
+- Escape to close, backdrop click to close
+- Edit mode pre-fills all fields
 
 ---
 
-### 3. 🔍 Search & Filter Bar
+#### 5. 🔍 Search & Filter Bar
 
-A persistent bar between the header and the board with:
-- **Live search** `Input` — filters task cards in real time by title or description (debounced 150ms, case-insensitive, client-side)
-- **Priority filter** — shadcn `Select` (`All`, `Low`, `Medium`, `High`, `Critical`)
-- **Column filter** — shadcn `Select` (`All Columns`, `Backlog`, `In Progress`, `Done`)
-- A **"Clear Filters"** `Button` (variant: ghost) that resets all three filters
-- A live count badge: `"Showing 4 of 9 tasks"` using shadcn `Badge`
+Persistent bar with:
+- **Live search** — debounced 150ms, case-insensitive, filters by title/description/assignee
+- **Priority filter** — shadcn `Select` (All, Low, Medium, High, Critical)
+- **Column filter** — shadcn `Select` (All Columns, Backlog, In Progress, Done)
+- **Assignee filter** — shadcn `Select` (workspace members, shown only in multi-user)
+- **"Clear Filters"** button (ghost variant)
+- Live count badge: `"Showing 4 of 9 tasks"`
 
 ---
 
-### 4. 📊 Stats Dashboard (Collapsible Panel)
+#### 6. 📊 Stats Dashboard
 
-A collapsible summary panel below the header (shadcn `Collapsible`) showing:
+Collapsible panel (shadcn `Collapsible`) below header:
 - Total tasks count
-- Tasks per column with percentage `Progress` bars
-- Overdue tasks count (shown in destructive color if > 0)
+- Tasks per column with % progress bars
+- Overdue tasks count (destructive color if > 0)
 - High + Critical tasks count
-- A `"Done / Total"` completion rate progress bar
-- Panel open/close state persisted in `localStorage`
+- Completion rate progress bar: Done / Total
+- Tasks per assignee (multi-user)
+- Panel open/close persisted in `localStorage`
 
 ---
 
-### 5. 🌗 Dark / Light Mode Toggle
+#### 7. 🌗 Dark / Light Mode Toggle
 
-- Toggle `Button` in the header (moon/sun `lucide-react` icons)
-- Uses `next-themes` for theme management
-- Default to OS preference (`prefers-color-scheme`)
-- Persist choice in `localStorage`
-- Smooth CSS transition between modes via Tailwind `transition-colors duration-200`
-- No flash of wrong theme on load (SSR-safe via `suppressHydrationWarning`)
+- Toggle button in header (moon/sun `lucide-react`)
+- `next-themes` with OS preference default
+- Persist in `localStorage`
+- Smooth `transition-colors duration-200`
+- No flash (SSR-safe via `suppressHydrationWarning`)
 
 ---
 
-### 6. 💾 Data Persistence — SQLite via Server Actions
+#### 8. 📬 Email & WhatsApp Notifications
 
-**Database schema** (initialize on first load in `lib/db.ts`):
+**Email (Resend):**
+- Welcome email on registration
+- Workspace invite email with magic link
+- Task assigned notification
+- Task @mention notification
+- Daily digest (tasks due today, overdue tasks)
+- Build error notifications (Phase 3 integration)
+
+**WhatsApp (Twilio API / whatsapp-web.js):**
+- Task assigned notification
+- Task due reminder (24h before due date)
+- Task overdue alert
+- Build failure alert (Phase 3 integration)
+
+**Notification Settings Page (`/settings/notifications`):**
+- Toggle each notification type on/off
+- Configure WhatsApp number
+- Configure email preference
+- Per-workspace notification rules
+
+**Notification Schema:**
+```sql
+CREATE TABLE IF NOT EXISTS notification_settings (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id  TEXT NOT NULL,
+  user_id       TEXT NOT NULL,
+  email_enabled INTEGER DEFAULT 1,
+  whatsapp_enabled INTEGER DEFAULT 0,
+  whatsapp_number TEXT DEFAULT '',
+  notify_on_assign INTEGER DEFAULT 1,
+  notify_on_due     INTEGER DEFAULT 1,
+  notify_on_mention INTEGER DEFAULT 1,
+  notify_on_overdue INTEGER DEFAULT 1,
+  notify_build_errors INTEGER DEFAULT 1,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
+
+---
+
+#### 9. 💾 Data Persistence — SQLite via Server Actions
+
+**Database Schema** (`lib/db.ts`):
 
 ```sql
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,
+  name          TEXT,
+  avatar_url    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS accounts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       TEXT NOT NULL,
+  provider      TEXT NOT NULL,
+  provider_account_id TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS workspaces (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  slug          TEXT NOT NULL UNIQUE,
+  owner_id      TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (owner_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS workspace_members (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id  TEXT NOT NULL,
+  user_id       TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'member',
+  invited_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  joined_at     TEXT,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  UNIQUE(workspace_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  task_id     TEXT NOT NULL UNIQUE,        -- "HW-001"
-  title       TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  priority    TEXT NOT NULL DEFAULT 'MEDIUM',
-  status      TEXT NOT NULL DEFAULT 'backlog',
-  due_date    TEXT,                         -- ISO 8601 date string or NULL
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id       TEXT NOT NULL,
+  workspace_id  TEXT NOT NULL,
+  title         TEXT NOT NULL,
+  description   TEXT DEFAULT '',
+  priority      TEXT NOT NULL DEFAULT 'MEDIUM',
+  status        TEXT NOT NULL DEFAULT 'backlog',
+  assignee_id   TEXT,
+  due_date      TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+  FOREIGN KEY (assignee_id) REFERENCES users(id),
+  UNIQUE(task_id, workspace_id)
+);
+
+CREATE TABLE IF NOT EXISTS notification_settings (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id  TEXT NOT NULL,
+  user_id       TEXT NOT NULL,
+  email_enabled INTEGER DEFAULT 1,
+  whatsapp_enabled INTEGER DEFAULT 0,
+  whatsapp_number TEXT DEFAULT '',
+  notify_on_assign INTEGER DEFAULT 1,
+  notify_on_due     INTEGER DEFAULT 1,
+  notify_on_mention INTEGER DEFAULT 1,
+  notify_on_overdue INTEGER DEFAULT 1,
+  notify_build_errors INTEGER DEFAULT 1,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
 );
 ```
 
 **Server Actions** (`lib/actions.ts`):
-- `createTask(data: CreateTaskInput): Promise<Task>` — inserts, returns full task
-- `updateTask(id: string, data: Partial<Task>): Promise<Task>` — patches task
-- `deleteTask(id: string): Promise<void>` — deletes by task_id
-- `moveTask(id: string, status: ColumnStatus): Promise<Task>` — updates status
-- All actions use `"use server"` directive and revalidate `/board` path
-- All actions validate input with `zod` before touching the DB
-
-**Seeding**: On first load, if the `tasks` table is empty, seed with **5 sample tasks** spread across all three columns.
-
-**Export**: An `"Export JSON"` button in the header that calls a `/api/tasks?format=json` route and triggers a browser download.
-
-**Clear All**: A shadcn `AlertDialog` with double-confirmation (type `"DELETE"` to confirm) that truncates the table and reloads.
+- `createTask(data)` — validates RBAC, inserts, returns full task
+- `updateTask(id, data)` — patches, validates permissions
+- `deleteTask(id)` — soft/hard delete with permission check
+- `moveTask(id, status)` — updates status
+- `inviteUser(email, workspaceId, role)` — creates invite, sends email
+- `acceptInvite(token)` — joins workspace
+- `updateMemberRole(workspaceId, userId, role)` — owner only
+- `removeMember(workspaceId, userId)` — admin+
+- `updateNotificationSettings(settings)` — saves per-user config
+- `sendTestNotification(type)` — sends test email/WhatsApp
+- All actions: `"use server"`, zod validated, `revalidatePath()`
 
 ---
 
-### 7. 🎨 UI / UX Quality Requirements
+### UI / UX REQUIREMENTS
 
-All design requirements below are **mandatory**. This section defines the visual language of the application.
+Same design system as v2.0 with these additions:
 
-#### 7.1 Design System
+- **Loading states**: Skeleton components for board, member list, settings
+- **Empty states**: Per-workspace empty states, "No members yet" state
+- **Error boundaries**: Per-workspace error handling
+- **Responsive sidebar**: Collapsible on mobile, persistent on desktop
 
-| Token | Value |
+---
+
+### ACCESSIBILITY
+
+Same WCAG AA requirements as v2.0 plus:
+- All RBAC-controlled elements have `aria-disabled` when action is denied
+- Notification toasts announced via `aria-live="polite"`
+- Workspace switcher has proper `role="listbox"` pattern
+- Invite flow respects tab order and focus management
+
+---
+
+## PHASE 2 — AWS INFRASTRUCTURE & CLOUDFLARE
+
+### 10. ☁️ AWS EC2 Deployment
+
+#### 10.1 Prerequisites
+- AWS account with admin access
+- AWS CLI configured locally
+- SSH key pair created (`hawiyat-kp.pem`)
+- Domain `hawiyat.cloud` registered (Route53 or external registrar)
+
+#### 10.2 EC2 Instance — Detailed Configuration
+
+| Parameter | Value |
 |---|---|
-| **Style** | Flat Design — 2D, minimalist, bold color accents, no drop shadows on cards, clean lines |
-| **Primary Color** | `#0D9488` (Teal 600) |
-| **Secondary Color** | `#14B8A6` (Teal 500) |
-| **Accent / CTA Color** | `#EA580C` (Orange 600) |
-| **Background (light)** | `#F0FDFA` (Teal 50) |
-| **Foreground (light)** | `#134E4A` (Teal 950) |
-| **Card (light)** | `#FFFFFF` |
-| **Muted (light)** | `#E8F1F4` |
-| **Border (light)** | `#99F6E4` (Teal 200) |
-| **Background (dark)** | `#0F172A` (Slate 900) |
-| **Foreground (dark)** | `#F0FDFA` (Teal 50) |
-| **Card (dark)** | `#1E293B` (Slate 800) |
-| **Muted (dark)** | `#1A2235` |
-| **Border (dark)** | `#334155` (Slate 600) |
-| **Destructive** | `#DC2626` (Red 600) |
+| **AMI** | Ubuntu 24.04 LTS (HVM, SSD) — `ami-0e86e20dae9224db8` (us-east-1) |
+| **Instance Type** | `t3.medium` (2 vCPU, 4 GiB RAM) |
+| **Storage** | 20 GB gp3 root volume + 30 GB gp3 data volume |
+| **Network** | Default VPC, public subnet |
+| **Security Group** | See firewall rules below |
+| **Key Pair** | `hawiyat-kp` |
+| **User Data** | Bootstrap script (see below) |
+| **IAM Role** | `hawiyat-ec2-role` with SSM + S3 read access |
+| **Monitoring** | CloudWatch detailed monitoring enabled |
+| **Termination Protection** | Enabled |
 
-All colors must be defined as CSS custom properties in `globals.css` using the shadcn/ui variable convention (`--background`, `--foreground`, `--primary`, etc.), and consumed via Tailwind utilities (`bg-background`, `text-foreground`, `text-primary`, etc.). No raw hex values in component files.
+#### 10.3 Security Group — Firewall Rules
 
-#### 7.2 Typography
-
-| Use | Font | Weight | Size |
-|---|---|---|---|
-| Page title / hero | Plus Jakarta Sans | ExtraBold 800 | `text-2xl` |
-| Section headings | Plus Jakarta Sans | Bold 700 | `text-xl` |
-| Card titles | Plus Jakarta Sans | SemiBold 600 | `text-sm` |
-| Body / description | Plus Jakarta Sans | Regular 400 | `text-sm` |
-| Labels / badges | Plus Jakarta Sans | Medium 500 | `text-xs` |
-| Task ID | Plus Jakarta Sans | Regular 400 | `text-xs` (muted) |
-
-Font must be loaded via `next/font/google` — never via a `<link>` tag. Set as the default sans-serif in `tailwind.config.ts`.
-
-#### 7.3 Spacing System
-
-Use Tailwind's 4pt/8dp spacing scale exclusively:
-- Component internal padding: `p-3` or `p-4`
-- Card gap: `gap-3`
-- Column gap: `gap-4` or `gap-6`
-- Section vertical rhythm: `space-y-4`, `space-y-6`, `space-y-8`
-- No arbitrary spacing values (no `p-[13px]`, `mt-[7px]`, etc.)
-
-#### 7.4 Animation & Motion
-
-| Interaction | Behavior |
-|---|---|
-| Card hover | `transition-all duration-150` — subtle `scale-[1.01]` and border color shift |
-| Modal open/close | shadcn Dialog built-in fade + scale (do not override) |
-| Column drop zone | Background color shift `transition-colors duration-150` |
-| Stats panel collapse | shadcn Collapsible built-in animation |
-| Toast | shadcn Sonner slide-in from bottom-right |
-| Theme toggle | `transition-colors duration-200` on `html` element |
-| Filter clear | Immediate; no animation needed |
-
-Rules:
-- All durations: 150–300ms. Never exceed 400ms for micro-interactions.
-- Use `transform` and `opacity` only. Never animate `height`, `width`, `top`, or `left` directly.
-- Always implement `@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }`
-
-#### 7.5 Responsive Layout
-
-| Breakpoint | Board Layout |
-|---|---|
-| Mobile (`< 768px`) | Single column, vertical stack. Column switcher tabs at top. |
-| Tablet (`768px – 1023px`) | Two-column grid (Backlog + In Progress visible; Done behind tab) |
-| Desktop (`≥ 1024px`) | Three-column equal-width grid (`grid-cols-3`) |
-
-- Use `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8` for page container
-- Column min-height: `min-h-[500px]` on desktop
-- Cards must not overflow their column — use `overflow-hidden` and `text-ellipsis` for long titles
-- No horizontal scroll at any viewport width
-
-#### 7.6 Empty States
-
-When a Kanban column has no tasks matching the current filters, render a centered placeholder inside the column:
-
-```
-[ghost icon — Inbox from lucide-react]
-"No tasks here yet."
-"Click '+ Add Task' to get started."
-[+ Add Task button — outline variant]
-```
-
-Text color: `text-muted-foreground`. Border: `border-2 border-dashed border-border`. Rounded: `rounded-xl`. Padding: `p-8`.
-
-#### 7.7 Priority Badges
-
-Use shadcn `Badge` with custom variants:
-
-| Priority | Variant Style |
-|---|---|
-| LOW | `bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400` |
-| MEDIUM | `bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400` |
-| HIGH | `bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400` |
-| CRITICAL | `bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400` |
-
-#### 7.8 Accessibility (Non-Negotiable)
-
-- All interactive elements must have visible `:focus-visible` ring: `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`
-- All modals must set `aria-labelledby` and `aria-describedby`
-- All icon-only buttons must have `aria-label` and `sr-only` text
-- Column headers must use `role="region"` with `aria-label`
-- Drag-and-drop must have keyboard alternative (Move dropdown)
-- Color is never the only indicator of status (priority shown as badge text + color + left border)
-- Minimum text contrast: 4.5:1 for body text, 3:1 for large text (WCAG AA)
-- Tab order must follow visual order left-to-right, top-to-bottom
-
----
-
-## NON-FUNCTIONAL REQUIREMENTS
-
-| Requirement | Expectation |
-|---|---|
-| **Type Safety** | No `any` types. All database results typed via `lib/types.ts`. All Server Action inputs validated by `zod` schema. |
-| **Security** | Never use `dangerouslySetInnerHTML` with user data. Parameterized SQL queries only — no string interpolation. Input sanitized via `zod` before DB write. |
-| **Performance** | Initial page load uses React Server Components (RSC) to fetch and render tasks server-side. Client components hydrate without layout shift. No unnecessary `"use client"` on server-renderable components. |
-| **Error Handling** | All Server Actions wrapped in `try/catch`. API routes return typed error JSON `{ error: string }`. Toast notification on action failure. DB connection errors handled gracefully with fallback message. |
-| **No Console Errors** | The app must run without any JS errors, TypeScript errors, or unhandled promise rejections. |
-| **Loading States** | `useTransition` or `useOptimistic` used for task mutations. Buttons show spinner during pending state. Cards show optimistic update immediately. |
-| **Code Quality** | Components under 200 lines. No prop drilling past 2 levels. Business logic in `lib/`, not in components. Functions named clearly in imperative verb form. |
-
----
-
-## DATA MODEL — TypeScript Types (`lib/types.ts`)
-
-```typescript
-export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type ColumnStatus = 'backlog' | 'in_progress' | 'done';
-
-export interface Task {
-  id: number;
-  taskId: string;         // "HW-001"
-  title: string;
-  description: string;
-  priority: Priority;
-  status: ColumnStatus;
-  dueDate: string | null; // ISO 8601 date string
-  createdAt: string;      // ISO 8601 datetime
-  updatedAt: string;      // ISO 8601 datetime
-}
-
-export interface CreateTaskInput {
-  title: string;
-  description?: string;
-  priority: Priority;
-  status: ColumnStatus;
-  dueDate?: string | null;
-}
-
-export interface UpdateTaskInput extends Partial<CreateTaskInput> {
-  taskId: string;
-}
-
-export interface BoardColumn {
-  id: ColumnStatus;
-  label: string;
-  tasks: Task[];
-}
-```
-
----
-
-## API ROUTES
-
-### `GET /api/tasks`
-Returns all tasks ordered by `created_at DESC`.
-
-**Query params:**
-- `?format=json` — triggers a JSON file download (sets `Content-Disposition: attachment; filename="hawiyat-hub-export-<date>.json"`)
-
-**Response:**
-```json
-{ "tasks": Task[] }
-```
-
-### `POST /api/tasks`
-Creates a new task. Body: `CreateTaskInput`.
-
-**Response:** `201` + `{ "task": Task }`
-
-### `PATCH /api/tasks/[id]`
-Updates task by `taskId`. Body: `Partial<UpdateTaskInput>`.
-
-**Response:** `200` + `{ "task": Task }`
-
-### `DELETE /api/tasks/[id]`
-Deletes task by `taskId`.
-
-**Response:** `204` (no body)
-
----
-
-## BONUS FEATURES (Optional — extra score if implemented)
-
-These are NOT required but significantly increase evaluation score:
-
-- [ ] **Drag & Drop** — `@dnd-kit/core` (permitted additional dependency) for column-to-column drag. Drag handle icon on each card. Column highlights on dragover. Optimistic update on drop.
-- [ ] **Keyboard Shortcut** — `Ctrl+K` or `N` opens "New Task" modal from anywhere on the page using a `useEffect` key listener
-- [ ] **Undo Delete** — 5-second toast (shadcn Sonner) with "Undo" button after deleting a task; task restored if undo clicked before timeout
-- [ ] **Tag System** — Up to 3 custom freeform tags per task stored as JSON in a `tags TEXT` column. Tags rendered as small badges. Tag filter in the filter bar.
-- [ ] **Task Count Badge** — Column headers show live count badge (shadcn `Badge`) that updates as filters change
-- [ ] **Import JSON** — File input (accept `.json`) in the header that parses exported task data and bulk-inserts via Server Action
-- [ ] **Optimistic UI** — All mutations use `useOptimistic` so the UI updates instantly without waiting for the server round-trip
-
----
-
-## IMPLEMENTATION REQUIREMENTS
-
-### Database Initialization (`lib/db.ts`)
-
-```typescript
-// Must be a singleton — no multiple connections
-// Must initialize schema on import
-// Must handle DB_PATH from process.env.DB_PATH
-// Must export a typed `db` instance used by all Server Actions
-```
-
-### Server Actions Pattern (`lib/actions.ts`)
-
-```typescript
-'use server';
-// Each action must:
-// 1. Parse + validate input with zod
-// 2. Execute synchronous better-sqlite3 query
-// 3. Revalidate the /board path via revalidatePath('/board')
-// 4. Return typed result or throw formatted error
-```
-
-### Client Component Pattern
-
-```typescript
-'use client';
-// Board page hydrates server-fetched tasks into local state
-// Mutations call Server Actions + update local state optimistically
-// No direct fetch() calls to /api/* from client components
-// (API routes are for external consumers / export only)
-```
-
----
-
-## SEED DATA (Pre-populate on empty DB)
-
-| # | Title | Status | Priority | Due Date |
+| Type | Protocol | Port | Source | Description |
 |---|---|---|---|---|
-| HW-001 | Set up project README | `done` | `LOW` | — |
-| HW-002 | Design color system | `done` | `MEDIUM` | — |
-| HW-003 | Build Kanban board layout | `in_progress` | `HIGH` | Today + 2 days |
-| HW-004 | Implement drag-and-drop | `in_progress` | `HIGH` | Today + 1 day |
-| HW-005 | Write unit tests for API | `backlog` | `MEDIUM` | Today + 7 days |
+| SSH | TCP | 22 | `195.201.0.0/16` (Cloudflare WARP) | Admin SSH |
+| HTTP | TCP | 80 | `0.0.0.0/0` | HTTP redirect to HTTPS |
+| HTTPS | TCP | 443 | `0.0.0.0/0` | Traefik/Next.js |
+| K3s API | TCP | 6443 | `10.0.0.0/8` | Kubernetes API (internal) |
+| K3s Flannel | UDP | 8472 | `10.0.0.0/8` | Flannel VXLAN (internal) |
+| K3s Metrics | TCP | 10250 | `10.0.0.0/8` | Kubelet metrics (internal) |
+| NodePort | TCP | 30000-32767 | `10.0.0.0/8` | Kubernetes NodePort (internal) |
+| Traefik Admin | TCP | 8080 | `195.201.0.0/16` | Traefik dashboard |
+| Cloudflare IPs | TCP | 443 | `173.245.48.0/20, 103.21.244.0/22, ...` | Cloudflare origin pull |
+
+> **Note**: Apply full list of Cloudflare origin IP ranges from https://www.cloudflare.com/ips-v4
+
+#### 10.4 EC2 User Data — Bootstrap Script
+
+```bash
+#!/bin/bash
+set -e
+
+# System updates
+apt-get update && apt-get upgrade -y
+apt-get install -y curl wget git ufw fail2ban unattended-upgrades
+
+# Install Docker
+curl -fsSL https://get.docker.com | bash
+systemctl enable docker && systemctl start docker
+
+# Install Node.js 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash
+apt-get install -y nodejs
+npm install -g pm2
+
+# Install k3s
+curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+
+# Configure UFW
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 6443/tcp
+ufw --force enable
+
+# Configure fail2ban
+cat > /etc/fail2ban/jail.local << 'EOF'
+[sshd]
+enabled = true
+port = 22
+maxretry = 3
+bantime = 3600
+findtime = 600
+EOF
+systemctl restart fail2ban
+
+# Mount data volume
+mkfs.ext4 /dev/xvdb || true
+mkdir -p /data
+mount /dev/xvdb /data || true
+echo '/dev/xvdb /data ext4 defaults 0 0' >> /etc/fstab
+
+# Clone application
+cd /data
+git clone https://github.com/Hawiyat-Org/hawiyat-hub.git
+cd hawiyat-hub
+npm install
+npm run build
+
+# Create systemd service for Next.js
+cat > /etc/systemd/system/hawiyat-hub.service << 'EOF'
+[Unit]
+Description=Hawiyat Hub Next.js Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/data/hawiyat-hub
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=10
+Environment=PORT=3000
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable hawiyat-hub
+systemctl start hawiyat-hub
+
+# Enable automatic security updates
+cat > /etc/apt/apt.conf.d/20auto-upgrades << 'EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+EOF
+
+echo "Bootstrap complete. Hawiyat Hub deployed."
+```
+
+#### 10.5 AWS CLI Commands — Provisioning
+
+```bash
+# Create security group
+aws ec2 create-security-group \
+  --group-name hawiyat-hub-sg \
+  --description "Hawiyat Hub security group" \
+  --vpc-id vpc-xxxxxxxx
+
+# Add firewall rules (see table above)
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-xxxxxxxx \
+  --protocol tcp --port 22 \
+  --cidr 195.201.0.0/16
+
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-xxxxxxxx \
+  --protocol tcp --port 80 --cidr 0.0.0.0/0
+
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-xxxxxxxx \
+  --protocol tcp --port 443 --cidr 0.0.0.0/0
+
+# Create and run EC2 instance
+aws ec2 run-instances \
+  --image-id ami-0e86e20dae9224db8 \
+  --instance-type t3.medium \
+  --key-name hawiyat-kp \
+  --security-group-ids sg-xxxxxxxx \
+  --subnet-id subnet-xxxxxxxx \
+  --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":20,\"VolumeType\":\"gp3\"}},{\"DeviceName\":\"/dev/xvdb\",\"Ebs\":{\"VolumeSize\":30,\"VolumeType\":\"gp3\"}}]" \
+  --iam-instance-profile Name=hawiyat-ec2-role \
+  --monitoring Enabled=true \
+  --disable-api-termination \
+  --user-data file://bootstrap.sh \
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=hawiyat-hub-master}]"
+
+# Allocate Elastic IP
+aws ec2 allocate-address --domain vpc
+aws ec2 associate-address \
+  --instance-id i-xxxxxxxx \
+  --allocation-id eipalloc-xxxxxxxx
+```
+
+---
+
+#### 10.6 OS Hardening Checklist
+
+- [ ] Disable root password SSH login (`PermitRootLogin prohibit-password`)
+- [ ] Create admin sudo user (`hawiyat-admin`)
+- [ ] Configure SSH key-only authentication
+- [ ] Install and configure `fail2ban`
+- [ ] Enable `ufw` with strict rules
+- [ ] Enable automatic security updates (unattended-upgrades)
+- [ ] Disable unused services (`cups`, `avahi-daemon`, etc.)
+- [ ] Set kernel parameters (`sysctl`): `net.ipv4.tcp_syncookies=1`, `net.ipv4.conf.all.rp_filter=1`
+- [ ] Install `rkhunter` and `aide` for intrusion detection
+- [ ] Configure `auditd` for system call auditing
+- [ ] Set up `logwatch` for daily log summaries
+- [ ] Harden SSH config: disable X11 forwarding, set `MaxAuthTries 3`, `ClientAliveInterval 300`
+- [ ] Enable `apparmor` profiles
+
+---
+
+### 11. 🌐 Cloudflare — DNS, Proxy & Anti-DDoS
+
+#### 11.1 DNS Records
+
+| Type | Name | Value | Proxy |
+|---|---|---|---|
+| A | `kanban.hawiyat.cloud` | `<EC2 Elastic IP>` | Proxied (orange cloud) |
+| A | `www.kanban.hawiyat.cloud` | `<EC2 Elastic IP>` | Proxied |
+| A | `api.kanban.hawiyat.cloud` | `<EC2 Elastic IP>` | Proxied |
+| CNAME | `*.kanban.hawiyat.cloud` | `kanban.hawiyat.cloud` | Proxied |
+| TXT | `_dmarc.kanban.hawiyat.cloud` | `"v=DMARC1; p=quarantine; rua=mailto:admin@hawiyat.cloud"` | — |
+| TXT | `hawiyat.cloud` | `"v=spf1 include:_spf.google.com ~all"` | — |
+
+#### 11.2 Cloudflare Configuration
+
+| Setting | Value |
+|---|---|
+| **SSL/TLS** | Full (strict) |
+| **Minimum TLS Version** | 1.3 |
+| **Always Use HTTPS** | ON |
+| **HTTP Strict Transport Security (HSTS)** | ON (max-age=31536000, includeSubDomains) |
+| **Auto Minify** | ON (HTML, CSS, JS) |
+| **Brotli** | ON |
+| **Early Hints** | ON |
+| **HTTP/2** | ON |
+| **HTTP/3 (QUIC)** | ON |
+| **0-RTT Connection Resumption** | ON |
+| **Orange-to-Cloud IP** | ON (restrict origin access to Cloudflare IPs only) |
+
+#### 11.3 DDoS Protection — Cloudflare Settings
+
+| Protection | Setting |
+|---|---|
+| **DDoS Managed Ruleset** | ON (high sensitivity) |
+| **Rate Limiting** | 120 requests / 10 seconds per IP |
+| **WAF (Web Application Firewall)** | ON (Core Ruleset, OWASP Paranoia Level 2) |
+| **Bot Fight Mode** | ON |
+| **Security Level** | Medium (challenge on suspicious) |
+| **Challenge Passage** | 30 minutes |
+| **Browser Integrity Check** | ON |
+| **IP Access Rules** | Block all non-Cloudflare IPs to origin |
+| **User Agent Blocking** | Block known bad bots |
+
+#### 11.4 Origin Server — Restrict to Cloudflare Only
+
+On the EC2 instance, configure the web server to only accept requests from Cloudflare IPs:
+
+```bash
+# Fetch Cloudflare IP ranges
+curl -s https://www.cloudflare.com/ips-v4 -o /tmp/cf-ips-v4.txt
+curl -s https://www.cloudflare.com/ips-v6 -o /tmp/cf-ips-v6.txt
+
+# Configure UFW to allow only Cloudflare to ports 80/443
+ufw delete allow 80/tcp
+ufw delete allow 443/tcp
+while read ip; do ufw allow from "$ip" to any port 80 proto tcp; done < /tmp/cf-ips-v4.txt
+while read ip; do ufw allow from "$ip" to any port 443 proto tcp; done < /tmp/cf-ips-v4.txt
+while read ip; do ufw allow from "$ip" to any port 80 proto tcp; done < /tmp/cf-ips-v6.txt
+while read ip; do ufw allow from "$ip" to any port 443 proto tcp; done < /tmp/cf-ips-v6.txt
+```
+
+---
+
+## PHASE 3 — K3S CLUSTER & TRAEFIK
+
+### 12. 🔄 K3s Cluster — Master + Worker Nodes
+
+#### 12.1 Architecture
+
+```
+                  Internet
+                     |
+                [Cloudflare]
+                     |
+               [Traefik LB]
+                     |
+          [k3s Master Node]  ← t3.medium (existing EC2, repurposed)
+              /          \
+     [k3s Worker 1]   [k3s Worker 2]  ← t3.small each
+```
+
+#### 12.2 Provision Worker Nodes
+
+```bash
+# After Phase 2 EC2 is verified working, create two additional instances
+aws ec2 run-instances \
+  --image-id ami-0e86e20dae9224db8 \
+  --instance-type t3.small \
+  --key-name hawiyat-kp \
+  --security-group-ids sg-xxxxxxxx \
+  --subnet-id subnet-xxxxxxxx \
+  --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":20,\"VolumeType\":\"gp3\"}}]" \
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=hawiyat-hub-worker-1}]"
+
+aws ec2 run-instances \
+  --image-id ami-0e86e20dae9224db8 \
+  --instance-type t3.small \
+  --key-name hawiyat-kp \
+  --security-group-ids sg-xxxxxxxx \
+  --subnet-id subnet-xxxxxxxx \
+  --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":20,\"VolumeType\":\"gp3\"}}]" \
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=hawiyat-hub-worker-2}]"
+```
+
+#### 12.3 Install k3s on Master Node
+
+```bash
+# On master node (existing EC2)
+curl -sfL https://get.k3s.io | sh -s - server \
+  --write-kubeconfig-mode 644 \
+  --node-name master-1 \
+  --tls-san kanban.hawiyat.cloud \
+  --disable traefik \
+  --disable local-storage \
+  --disable servicelb \
+  --cluster-cidr 10.42.0.0/16 \
+  --service-cidr 10.43.0.0/16 \
+  --cluster-domain cluster.local \
+  --db-path /data/k3s/db \
+  --etcd-s3 \
+  --etcd-s3-bucket hawiyat-k3s-backup \
+  --etcd-s3-region us-east-1 \
+  --etcd-s3-folder backups \
+  --kube-apiserver-arg "--request-timeout=300s"
+
+# Get node token (needed for workers)
+cat /var/lib/rancher/k3s/server/node-token
+```
+
+#### 12.4 Join Workers to Cluster
+
+```bash
+# On each worker node
+curl -sfL https://get.k3s.io | K3S_URL=https://<master-private-ip>:6443 \
+  K3S_TOKEN=<node-token> \
+  sh -s - agent \
+  --node-name worker-1
+
+# Verify cluster
+kubectl get nodes
+kubectl get pods --all-namespaces
+```
+
+#### 12.5 Node Labels & Taints
+
+```bash
+# Label nodes
+kubectl label node master-1 node-role.kubernetes.io/master=true
+kubectl label node worker-1 node-role.kubernetes.io/worker=true
+kubectl label node worker-2 node-role.kubernetes.io/worker=true
+
+# Taint master to reserve for system workloads
+kubectl taint nodes master-1 node-role.kubernetes.io/master=true:NoSchedule
+```
+
+---
+
+### 13. 🚦 Traefik — Ingress Controller & Proxy
+
+#### 13.1 Install Traefik via Helm
+
+```bash
+# Add Traefik Helm repo
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+
+# Create values file
+cat > traefik-values.yaml << 'EOF'
+deployment:
+  replicas: 2
+  kind: Deployment
+ports:
+  web:
+    port: 80
+    expose: true
+    exposedPort: 80
+    redirectTo: websecure
+  websecure:
+    port: 443
+    expose: true
+    exposedPort: 443
+    tls:
+      enabled: true
+      certResolver: le
+  traefik:
+    port: 8080
+    expose: true
+    exposedPort: 8080
+ingressRoute:
+  dashboard:
+    enabled: true
+    matchRule: Host(`traefik.kanban.hawiyat.cloud`)
+    middlewares:
+      - auth-basic
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
+    publishedService:
+      enabled: true
+certificatesResolvers:
+  le:
+    acme:
+      email: admin@hawiyat.cloud
+      storage: /data/traefik/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+      httpChallenge:
+        entryPoint: web
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+accessLog: true
+EOF
+
+# Deploy Traefik
+helm install traefik traefik/traefik \
+  --namespace traefik \
+  --create-namespace \
+  -f traefik-values.yaml
+```
+
+#### 13.2 Traefik Middleware — Auth & Security
+
+```yaml
+# middleware-security.yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+  namespace: traefik
+spec:
+  headers:
+    frameDeny: true
+    contentTypeNosniff: true
+    browserXssFilter: true
+    referrerPolicy: "strict-origin-when-cross-origin"
+    permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+    customFrameOptionsValue: "DENY"
+    customResponseHeaders:
+      X-Robots-Tag: "noindex, nofollow"
+    sslRedirect: true
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit
+  namespace: traefik
+spec:
+  rateLimit:
+    average: 120
+    burst: 200
+    period: 10s
+    sourceCriterion:
+      ipStrategy:
+        depth: 1
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: compress
+  namespace: traefik
+spec:
+  compress:
+    excludedContentTypes:
+      - text/event-stream
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ip-whitelist
+  namespace: traefik
+spec:
+  ipWhiteList:
+    sourceRange:
+      - "173.245.48.0/20"
+      - "103.21.244.0/22"
+      - "103.22.200.0/22"
+      - "103.31.4.0/22"
+      - "141.101.64.0/18"
+      - "108.162.192.0/18"
+      - "190.93.240.0/20"
+      - "188.114.96.0/20"
+      - "197.234.240.0/22"
+      - "198.41.128.0/17"
+      - "162.158.0.0/15"
+      - "104.16.0.0/13"
+      - "104.24.0.0/14"
+      - "172.64.0.0/13"
+      - "131.0.72.0/22"
+```
+
+#### 13.3 IngressRoute — Hawiyat Hub
+
+```yaml
+# ingress-hawiyat-hub.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hawiyat-hub
+  namespace: default
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`kanban.hawiyat.cloud`) && PathPrefix(`/`)
+      services:
+        - name: hawiyat-hub
+          port: 3000
+      middlewares:
+        - name: security-headers
+          namespace: traefik
+        - name: rate-limit
+          namespace: traefik
+        - name: compress
+          namespace: traefik
+        - name: ip-whitelist
+          namespace: traefik
+  tls:
+    certResolver: le
+    options:
+      name: tls-options
+      namespace: traefik
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: tls-options
+  namespace: traefik
+spec:
+  minVersion: VersionTLS13
+  cipherSuites:
+    - TLS_AES_128_GCM_SHA256
+    - TLS_AES_256_GCM_SHA384
+    - TLS_CHACHA20_POLY1305_SHA256
+  sniStrict: true
+```
+
+#### 13.4 Deploy Hawiyat Hub on K3s
+
+```yaml
+# deployment-hawiyat-hub.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hawiyat-hub
+  namespace: default
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: hawiyat-hub
+  template:
+    metadata:
+      labels:
+        app: hawiyat-hub
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - hawiyat-hub
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: hawiyat-hub
+          image: ghcr.io/hawiyat-org/hawiyat-hub:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DATABASE_PATH
+              value: "/data/hawiyat.db"
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hawiyat-secrets
+                  key: auth-secret
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hawiyat-secrets
+                  key: resend-api-key
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: hawiyat-secrets
+                  key: twilio-account-sid
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hawiyat-secrets
+                  key: twilio-auth-token
+            - name: TWILIO_WHATSAPP_NUMBER
+              valueFrom:
+                secretKeyRef:
+                  name: hawiyat-secrets
+                  key: twilio-whatsapp-number
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hawiyat-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hawiyat-hub
+  namespace: default
+spec:
+  selector:
+    app: hawiyat-hub
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hawiyat-data-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+```
+
+#### 13.5 Horizontal Pod Autoscaler
+
+```yaml
+# hpa-hawiyat-hub.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hawiyat-hub
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hawiyat-hub
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+
+---
+
+### 14. 🔔 Build Error Notifications
+
+#### 14.1 CI/CD Pipeline — GitHub Actions + Notification
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy Hawiyat Hub
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: hawiyat-org/hawiyat-hub
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Deploy to K3s
+        run: |
+          kubectl set image deployment/hawiyat-hub hawiyat-hub=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          kubectl rollout status deployment/hawiyat-hub
+
+      - name: Notify — Success
+        if: success()
+        run: |
+          curl -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer ${{ secrets.RESEND_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "from": "deploy@hawiyat.cloud",
+              "to": ["team@hawiyat.cloud"],
+              "subject": "✅ Hawiyat Hub Deployment Successful",
+              "html": "<h2>Deployment Complete</h2><p>Commit: ${{ github.sha }}</p><p>Branch: ${{ github.ref_name }}</p>"
+            }'
+
+      - name: Notify — Build Failure (Email + WhatsApp)
+        if: failure()
+        run: |
+          # Email notification
+          curl -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer ${{ secrets.RESEND_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "from": "deploy@hawiyat.cloud",
+              "to": ["team@hawiyat.cloud"],
+              "subject": "❌ Hawiyat Hub Build Failed",
+              "html": "<h2>Build Failed</h2><p>Commit: ${{ github.sha }}</p><p>Branch: ${{ github.ref_name }}</p><p>Author: ${{ github.actor }}</p><a href=\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\">View Logs</a>"
+            }'
+
+          # WhatsApp notification via Twilio
+          curl -X POST https://api.twilio.com/2010-04-01/Accounts/${{ secrets.TWILIO_ACCOUNT_SID }}/Messages.json \
+            -u "${{ secrets.TWILIO_ACCOUNT_SID }}:${{ secrets.TWILIO_AUTH_TOKEN }}" \
+            -d "From=whatsapp:${{ secrets.TWILIO_WHATSAPP_NUMBER }}" \
+            -d "To=whatsapp:${{ secrets.DEV_OPS_WHATSAPP }}" \
+            -d "Body=❌ Hawiyat Hub build FAILED on ${{ github.ref_name }} by ${{ github.actor }}. View: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+```
+
+#### 14.2 Build Error Webhook — Internal API
+
+```typescript
+// app/api/notifications/build-error/route.ts
+import { NextResponse } from 'next/server';
+import { sendEmail } from '@/lib/notifications/email';
+import { sendWhatsApp } from '@/lib/notifications/whatsapp';
+import { db } from '@/lib/db';
+
+export async function POST(request: Request) {
+  try {
+    const { project, branch, commit, author, status, logs } = await request.json();
+
+    // Fetch all users with build error notifications enabled
+    const subscribers = db.prepare(`
+      SELECT u.email, ns.whatsapp_number
+      FROM notification_settings ns
+      JOIN users u ON u.id = ns.user_id
+      WHERE ns.notify_build_errors = 1
+        AND ns.workspace_id = ?
+    `).all(project);
+
+    const subject = status === 'success'
+      ? `✅ Build succeeded: ${project}/${branch}`
+      : `❌ Build FAILED: ${project}/${branch}`;
+
+    const html = `
+      <h2>Build ${status === 'success' ? 'Succeeded' : 'Failed'}</h2>
+      <p><strong>Project:</strong> ${project}</p>
+      <p><strong>Branch:</strong> ${branch}</p>
+      <p><strong>Commit:</strong> ${commit}</p>
+      <p><strong>Author:</strong> ${author}</p>
+      ${logs ? `<pre>${logs}</pre>` : ''}
+    `;
+
+    for (const subscriber of subscribers) {
+      await sendEmail({
+        to: subscriber.email,
+        subject,
+        html,
+      });
+
+      if (subscriber.whatsapp_number) {
+        await sendWhatsApp({
+          to: subscriber.whatsapp_number,
+          message: `${subject}\nCommit: ${commit}\nAuthor: ${author}`,
+        });
+      }
+    }
+
+    return NextResponse.json({ sent: subscribers.length });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to send build notifications' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
+### 15. 📁 K3s Complete YAML Templates
+
+All templates below go in `/ops/k3s/`:
+
+```
+ops/k3s/
+├── traefik/
+│   ├── traefik-values.yaml          # Helm values
+│   ├── middleware-security.yaml     # Security headers, rate limit, compression
+│   └── tls-options.yaml            # TLS 1.3 configuration
+├── hawiyat-hub/
+│   ├── deployment.yaml              # Deployment + Service + PVC
+│   ├── ingressroute.yaml            # Traefik IngressRoute
+│   ├── hpa.yaml                     # Horizontal Pod Autoscaler
+│   ├── secrets.yaml                 # Encrypted secrets (SOPS)
+│   └── configmap.yaml              # Environment config
+├── monitoring/
+│   ├── prometheus-stack.yaml        # kube-prometheus-stack Helm values
+│   ├── grafana-dashboard.yaml       # Custom Grafana dashboard
+│   └── alertmanager-config.yaml     # Alertmanager rules
+├── storage/
+│   ├── storage-class.yaml           # Local path provisioner
+│   └── backup-cronjob.yaml          # etcd + DB backup CronJob
+└── cluster/
+    ├ namespace.yaml                 # All namespaces
+    ├ rbac-cluster.yaml              # ClusterRole bindings
+    └ resource-quotas.yaml           # Per-namespace quotas
+```
+
+#### 15.1 Monitoring Stack
+
+```yaml
+# ops/k3s/monitoring/prometheus-stack.yaml
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    retentionSize: 50GB
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+    replicas: 1
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+grafana:
+  adminPassword: admin
+  ingress:
+    enabled: true
+    hosts:
+      - monitoring.kanban.hawiyat.cloud
+    annotations:
+      kubernetes.io/ingress.class: traefik
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      hawiyat-hub:
+        json: |
+          { "title": "Hawiyat Hub Dashboard", "panels": [...] }
+
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: default
+      routes:
+        - match:
+            severity: critical
+          receiver: critical
+    receivers:
+      - name: default
+        email_configs:
+          - to: team@hawiyat.cloud
+            from: alert@hawiyat.cloud
+            smarthost: smtp.resend.com:587
+            auth_username: "{{ RESEND_SMTP_USER }}"
+            auth_password: "{{ RESEND_SMTP_PASSWORD }}"
+      - name: critical
+        webhook_configs:
+          - url: "http://hawiyat-hub:3000/api/notifications/build-error"
+            send_resolved: true
+```
+
+#### 15.2 Backup CronJob
+
+```yaml
+# ops/k3s/storage/backup-cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hawiyat-backup
+  namespace: default
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: alpine:3.19
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-backup-credentials
+                      key: access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-backup-credentials
+                      key: secret-access-key
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  apk add --no-cache aws-cli sqlite
+                  cp /data/hawiyat.db /tmp/hawiyat-$(date +%Y%m%d-%H%M%S).db
+                  gzip /tmp/hawiyat-*.db
+                  aws s3 cp /tmp/hawiyat-*.db.gz s3://hawiyat-backups/db/
+                  kubectl exec -n default deploy/hawiyat-hub -- \
+                    sh -c "k3s etcd-snapshot save --s3 --s3-bucket=hawiyat-k3s-backup"
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          restartPolicy: OnFailure
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: hawiyat-data-pvc
+```
+
+---
+
+### 16. ✅ CLUSTER VERIFICATION CHECKLIST
+
+After all three nodes are provisioned and k3s + Traefik are configured:
+
+- [ ] `kubectl get nodes` — all 3 nodes `Ready`
+- [ ] `kubectl get pods -n traefik` — Traefik pods running
+- [ ] `kubectl get pods -n default` — hawiyat-hub pods running
+- [ ] `kubectl get ingressroute` — ingress configured
+- [ ] `curl -I https://kanban.hawiyat.cloud` — returns 200
+- [ ] `kubectl get hpa` — autoscaler configured
+- [ ] `kubectl get cronjob` — backup cronjob active
+- [ ] Cloudflare dashboard — DNS proxied (orange cloud)
+- [ ] Cloudflare dashboard — WAF enabled, rate limiting active
+- [ ] `ufw status` — correct firewall rules on all nodes
+- [ ] `kubectl logs -n traefik deploy/traefik` — no TLS errors
+- [ ] GitHub Actions — deploy workflow runs successfully
+- [ ] WhatsApp notification received on first deploy
+- [ ] Email notification received on first deploy
+- [ ] Fail2ban active (`fail2ban-client status sshd`)
+- [ ] `etcd-snapshot` tested and restorable
 
 ---
 
 ## DELIVERABLE
 
-A complete Next.js project that:
+A complete Next.js project + infrastructure config that:
 
-1. Runs with `npm install && npm run dev` — no additional setup steps
-2. Initializes the SQLite DB automatically on first start
+1. Runs with `npm install && npm run dev` — no additional setup
+2. Initializes SQLite + Auth + RBAC automatically
 3. Seeds sample data if no tasks exist
 4. Passes `npx tsc --noEmit` with zero TypeScript errors
-5. Has no `eslint` warnings in the default Next.js config
-6. Renders correctly at 375px, 768px, 1024px, and 1440px viewport widths
-7. Works in dark mode and light mode without visual glitches
-8. Contains a comment block at the top of `lib/db.ts` with: App name, author, version `2.0.0`, and date
+5. Has no `eslint` warnings
+6. Is deployable to AWS EC2 via the provided bootstrap script
+7. Has Cloudflare DNS configured at `kanban.hawiyat.cloud`
+8. Scales to a 3-node k3s cluster with Traefik ingress
+9. Sends Email + WhatsApp notifications on build status
+10. Contains complete YAML templates in `ops/k3s/`
 
 ---
 
-## MANDATORY TOOLING SETUP — BEFORE ANY CODE
-
-Before writing a single line of application code, you **must** complete the following setup steps in order. A model that skips this section and proceeds directly to implementation receives **0 points for UI/UX Polish and Innovation**.
-
-### Step 1 — Install Superpowers
-
-Superpowers is a Claude Code plugin that provides workflow skills (brainstorming, planning, TDD, debugging, code review, etc.).
-
-Run the following in your terminal:
-
-```bash
-claude mcp add superpowers -- npx -y @claude-plugins/superpowers@latest
-```
-
-Verify installation by checking that the skill `superpowers:brainstorming` is listed in your available skills. If it is not listed, do not proceed — fix the installation first.
-
-### Step 2 — Install UI/UX Pro Max
-
-UI/UX Pro Max is a Claude Code plugin that provides a searchable design intelligence database: 50+ styles, 161 color palettes, 57 font pairings, 99 UX guidelines, and 25 chart types.
-
-Run the following:
-
-```bash
-claude mcp add ui-ux-pro-max -- npx -y @claude-plugins/ui-ux-pro-max@latest
-```
-
-Verify installation by checking that the skill `ui-ux-pro-max:ui-ux-pro-max` is listed in your available skills.
-
-### Step 3 — Generate the Design System
-
-Once both plugins are installed, invoke the `ui-ux-pro-max:ui-ux-pro-max` skill via Claude Code (use the Skill tool) with the following intent:
-
-> "Generate and persist a full design system for Hawiyat Hub — a productivity kanban task manager, professional SaaS style. Use `--design-system --persist -p 'Hawiyat Hub' -f markdown`."
-
-The skill will run its internal search script and write the result to `design-system/MASTER.md`. All component styling decisions must reference this file. **Do not invent a color palette** — use the one generated by the skill.
-
-### Step 4 — Run the Brainstorming Skill
-
-Before writing any code, invoke the `superpowers:brainstorming` skill. Use it to:
-- Confirm your understanding of the product spec
-- Identify the RSC vs client component boundaries
-- Define the data flow: Server Actions → optimistic state → UI
-- Write a brief implementation plan
-
-Only after completing all four steps above should you begin writing application code.
-
-**Evaluation note:** Reviewers will check for the presence of `design-system/MASTER.md` in the submitted project. Its absence is a 15-point deduction. Evidence of brainstorming (in commit history, comments, or a `docs/plan.md` file) adds 5 innovation points.
-
----
-
-## EVALUATION CRITERIA
-
-Your output will be evaluated on:
+## EVALUATION CRITERIA — UPDATED
 
 | Category | Weight | What We Look For |
 |---|---|---|
-| **Functional Completeness** | 25% | Every required feature works end-to-end (create, read, update, delete, move, filter, search, export) |
-| **Type Safety & Code Quality** | 20% | No `any`, no console errors, clean separation of concerns, readable naming |
-| **UI/UX Polish** | 20% | Design system respected, responsive, accessible, empty states, loading states, dark mode |
-| **Database & Server Actions** | 15% | Correct schema, parameterized queries, proper revalidation, seed data |
-| **Architecture** | 10% | RSC vs client boundary correct, file structure matches spec, no unnecessary client components |
-| **Bonus Features** | 5% | Drag-and-drop, undo delete, optimistic UI, tag system |
-| **Innovation** | 5% | See Innovation Scoring section below |
-
----
-
-## INNOVATION SCORING
-
-Innovation points are awarded for going meaningfully beyond the spec in ways that demonstrate creative engineering judgment. Each qualifying innovation earns **+1 to +3 points** (max 15 innovation points total, capped at 100 overall).
-
-### What Counts as Innovation
-
-| Innovation | Max Points | Criteria |
-|---|---|---|
-| **Micro-animation system** | +3 | A documented, reusable set of Tailwind/CSS animation primitives (e.g., `data-[state=open]:animate-in`, spring curves, stagger utilities) used consistently across ≥ 5 components |
-| **Keyboard-first UX** | +2 | Full keyboard navigation: `Ctrl+K` command palette, `N` for new task, `E` for edit, `D` for delete, `←/→` to move between columns — all announced via `aria-live` |
-| **Optimistic UI everywhere** | +2 | Every mutation (create, update, delete, move) uses `useOptimistic` with instant visual feedback and rollback on error |
-| **AI-powered task suggestions** | +3 | A "Suggest next task" button that calls the Claude API (or any LLM) to generate a task based on existing board content |
-| **Real-time collaboration readiness** | +2 | Architecture comment explaining how the app would extend to multi-user real-time (e.g., Server-Sent Events or WebSocket design sketch in `docs/realtime.md`) |
-| **Custom shadcn theme** | +1 | A `components.json` + CSS variables file that goes beyond the default shadcn palette and matches the Hawiyat Hub teal/orange brand exactly, with named semantic tokens |
-| **Board analytics view** | +2 | A `/analytics` page showing task velocity (tasks completed per day chart), priority distribution (donut chart), and average time-in-column — built with a lightweight charting lib (e.g., Recharts — permitted as bonus dependency) |
-| **Pomodoro timer** | +1 | A 25-min countdown timer in the header, linkable to a task card, with start/pause/reset and a toast notification when time is up |
-| **Design system provenance** | +1 | A `design-system/MASTER.md` generated by UI/UX Pro Max, referenced in code comments, with evidence of adherence (palette matches, font matches, spacing matches) |
-| **Brainstorming evidence** | +1 | A `docs/plan.md` or commit message trail showing structured thinking before implementation (architecture decisions, trade-offs considered) |
-
-### What Does NOT Count as Innovation
-
-- Adding more dependencies than needed
-- Rebuilding features that shadcn already provides
-- Decorative animations with no UX purpose
-- Features that break core functionality
-- AI-generated boilerplate without meaningful adaptation
-
-Innovation is judged on **intentionality, elegance, and user impact** — not line count.
+| **Functional Completeness** | 15% | All Phase 1 features: Auth, RBAC, Kanban, Workspaces, Notifications |
+| **Type Safety & Code Quality** | 10% | No `any`, clean separation, readable naming |
+| **UI/UX Polish** | 10% | Design system, responsive, accessible, dark mode, empty/loading states |
+| **Database & Server Actions** | 10% | Correct schema, parameterized queries, revalidation, seed data |
+| **Auth & RBAC** | 15% | Multi-workspace, role guards, invite flow, session management |
+| **Notifications** | 10% | Email + WhatsApp integration, settings UI, build error alerts |
+| **AWS Deployment** | 10% | EC2 provisioned, bootstrapped, secured, firewall hardened |
+| **Cloudflare Configuration** | 5% | DNS, proxy, anti-DDoS, origin restriction, HSTS, SSL/TLS |
+| **K3s Cluster** | 10% | 3-node cluster, master/workers, labels, taints, HPA |
+| **Traefik Ingress** | 5% | TLS 1.3, security middleware, rate limiting, Let's Encrypt |
+| **Bonus Features** | 5% | Drag-and-drop, undo delete, optimistic UI, backup cronjob, monitoring |
 
 ---
 
@@ -570,12 +1488,13 @@ Innovation is judged on **intentionality, elegance, and user impact** — not li
 
 | Score | Meaning |
 |---|---|
-| 0–40 | Incomplete or non-running app |
-| 41–60 | Core board works but missing features (no filter, no persistence, or broken dark mode) |
-| 61–75 | All core features work; minor UI inconsistencies or missing accessibility |
-| 76–90 | Polished, fully functional, design system respected, accessible |
-| 91–100 | All of the above + 2+ bonus features + optimistic UI + zero TS errors + innovation points |
+| 0–30 | Incomplete or non-running app |
+| 31–50 | Phase 1 partially complete (no auth, no RBAC) or Phase 2 missing |
+| 51–70 | Phase 1 complete, Phase 2 partially done (EC2 up but no Cloudflare/k3s) |
+| 71–85 | All phases functional; minor gaps in security or monitoring |
+| 86–100 | Fully deployed, clustered, secured, monitored, with notifications and zero TS errors |
 
 ---
 
-**Begin. Install the tools. Generate the design system. Plan your implementation. Then build the complete Hawiyat Hub application.**
+**Begin. Build the application. Deploy to AWS. Configure Cloudflare. Scale with k3s. Notify on build.**
+
