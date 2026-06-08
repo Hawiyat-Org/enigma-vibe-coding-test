@@ -37,6 +37,7 @@ This is a timed full-stack + infrastructure engineering challenge. Quality, comp
 | Theme | `next-themes` | latest |
 | Auth | NextAuth.js / Auth.js | latest |
 | Notifications | `resend` (email) + `twilio` or `whatsapp-web.js` (WhatsApp) | latest |
+| Object Storage | Cloudflare R2 (S3-compatible) | — |
 
 **No other dependencies are permitted** unless explicitly noted below.
 
@@ -120,6 +121,8 @@ hawiyat-hub/
 │   │   ├── email.ts                 # Resend email integration
 │   │   ├── whatsapp.ts              # WhatsApp/Twilio integration
 │   │   └── index.ts                 # Notification dispatcher
+│   ├── storage/
+│   │   └── r2.ts                    # Cloudflare R2 client (file uploads, backups)
 │   └── validations.ts               # Zod schemas for all inputs
 ├── hooks/
 │   ├── useTasks.ts
@@ -556,6 +559,44 @@ echo "Bootstrap complete. Hawiyat Hub deployed."
 
 #### 10.5 AWS CLI Commands — Provisioning
 
+#### 10.5 Environment Variables — Credentials as Env Vars
+
+All credentials are passed as environment variables — never hardcoded:
+
+```bash
+# .env.local — Application
+DATABASE_PATH=./hawiyat.db
+AUTH_SECRET=your-auth-secret
+AUTH_GITHUB_ID=your-github-oauth-id
+AUTH_GITHUB_SECRET=your-github-oauth-secret
+AUTH_GOOGLE_ID=your-google-oauth-id
+AUTH_GOOGLE_SECRET=your-google-oauth-secret
+RESEND_API_KEY=re_xxxxxxxx
+TWILIO_ACCOUNT_SID=your-twilio-sid
+TWILIO_AUTH_TOKEN=your-twilio-token
+TWILIO_WHATSAPP_NUMBER=+14155238886
+
+# Cloudflare R2 — S3-Compatible Object Storage
+R2_ACCOUNT_ID=your-cloudflare-account-id
+R2_ACCESS_KEY_ID=your-r2-access-key
+R2_SECRET_ACCESS_KEY=your-r2-secret-key
+R2_BUCKET_NAME=hawiyat-hub
+R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
+R2_REGION=auto
+
+# AWS — Infrastructure
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+AWS_DEFAULT_REGION=us-east-1
+AWS_SSH_KEY_NAME=hawiyat-kp
+
+# Cloudflare API — DNS & TLS
+CLOUDFLARE_API_TOKEN=your-cf-api-token
+CLOUDFLARE_ZONE_ID=your-cf-zone-id
+```
+
+#### 10.6 AWS CLI Commands — Provisioning
+
 ```bash
 # Create security group
 aws ec2 create-security-group \
@@ -600,7 +641,7 @@ aws ec2 associate-address \
 
 ---
 
-#### 10.6 OS Hardening Checklist
+#### 10.8 OS Hardening Checklist
 
 - [ ] Disable root password SSH login (`PermitRootLogin prohibit-password`)
 - [ ] Create admin sudo user (`hawiyat-admin`)
@@ -661,7 +702,100 @@ aws ec2 associate-address \
 | **IP Access Rules** | Block all non-Cloudflare IPs to origin |
 | **User Agent Blocking** | Block known bad bots |
 
-#### 11.4 Origin Server — Restrict to Cloudflare Only
+#### 11.4 Cloudflare R2 — Object Storage
+
+R2 is used for task file attachments, avatars, export downloads, and DB backups.
+
+**Bucket Configuration:**
+
+| Setting | Value |
+|---|---|
+| **Bucket Name** | `hawiyat-hub` |
+| **Region** | `auto` (R2 is globally distributed) |
+| **Public Access** | ON (via R2.dev subdomain) |
+| **Custom Domain** | `files.hawiyat.cloud` |
+| **CORS Policy** | Allow `https://kanban.hawiyat.cloud` |
+| **Lifecycle Rules** | Delete files > 90 days (temp exports) |
+
+**CORS Policy (apply in R2 dashboard):**
+
+```json
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": ["https://kanban.hawiyat.cloud", "https://*.hawiyat.cloud"],
+      "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}
+```
+
+**R2 Client — `lib/storage/r2.ts`:**
+
+```typescript
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+
+const r2 = new S3Client({
+  region: process.env.R2_REGION || 'auto',
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+export async function uploadFile(key: string, body: Buffer, contentType: string) {
+  return r2.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  }));
+}
+
+export async function getFile(key: string) {
+  return r2.send(new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+  }));
+}
+
+export async function deleteFile(key: string) {
+  return r2.send(new DeleteObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+  }));
+}
+
+export function getPublicUrl(key: string) {
+  return `${process.env.R2_PUBLIC_URL}/${key}`;
+}
+```
+
+**R2 Folder Structure:**
+
+```
+hawiyat-hub/
+├── avatars/           # User profile pictures
+│   └── {userId}.jpg
+├── attachments/       # Task file attachments
+│   └── {workspaceId}/{taskId}/{fileId}-{filename}
+├── exports/           # JSON exports (auto-delete after 90 days)
+│   └── {workspaceId}/{date}-hawiyat-export.json
+└── backups/           # Database backups (from CronJob)
+    └── hawiyat-{date}.db.gz
+```
+
+**DNS Record for Custom R2 Domain:**
+
+| Type | Name | Value | Proxy |
+|---|---|---|---|
+| CNAME | `files.hawiyat.cloud` | `pub-xxxxx.r2.dev` | Proxied (orange cloud) |
+
+#### 11.5 Origin Server — Restrict to Cloudflare Only
 
 On the EC2 instance, configure the web server to only accept requests from Cloudflare IPs:
 
@@ -1375,7 +1509,70 @@ alertmanager:
             send_resolved: true
 ```
 
-#### 15.2 Backup CronJob
+#### 15.2 Backup CronJob (S3 or R2)
+
+```yaml
+# ops/k3s/storage/backup-cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hawiyat-backup
+  namespace: default
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: alpine:3.19
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-credentials
+                      key: access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-credentials
+                      key: secret-access-key
+                - name: ENDPOINT_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-credentials
+                      key: endpoint-url
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  apk add --no-cache aws-cli sqlite
+                  cp /data/hawiyat.db /tmp/hawiyat-$(date +%Y%m%d-%H%M%S).db
+                  gzip /tmp/hawiyat-*.db
+                  # Upload to R2 (use --endpoint-url for R2, omit for AWS S3)
+                  aws s3 cp /tmp/hawiyat-*.db.gz s3://hawiyat-hub/backups/ \
+                    --endpoint-url $ENDPOINT_URL
+                  kubectl exec -n default deploy/hawiyat-hub -- \
+                    sh -c "k3s etcd-snapshot save --s3 --s3-bucket=hawiyat-k3s-backup"
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          restartPolicy: OnFailure
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: hawiyat-data-pvc
+```
+
+**Backup targets — choose one:**
+
+| Target | Endpoint URL | Provider |
+|---|---|---|
+| AWS S3 | *(omit)* | `s3://hawiyat-backups/db/` |
+| Cloudflare R2 | `https://<account-id>.r2.cloudflarestorage.com` | `s3://hawiyat-hub/backups/` |
+
+---
 
 ```yaml
 # ops/k3s/storage/backup-cronjob.yaml
@@ -1462,7 +1659,8 @@ A complete Next.js project + infrastructure config that:
 7. Has Cloudflare DNS configured at `kanban.hawiyat.cloud`
 8. Scales to a 3-node k3s cluster with Traefik ingress
 9. Sends Email + WhatsApp notifications on build status
-10. Contains complete YAML templates in `ops/k3s/`
+10. R2 bucket configured for file uploads, exports, and backups
+11. Contains complete YAML templates in `ops/k3s/`
 
 ---
 
